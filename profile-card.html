@@ -17,12 +17,13 @@
   Everything is self-contained except the avatar and the two web fonts, which
   load from the network. Drop the file anywhere and it still works.
 
-  Responsive: one fluid scale (see the --* clamps in :root) drives the whole
-  card, so there are no layout jumps between breakpoints. Every clamp pinpoints
-  to its original fixed px at a 591px viewport, which is where the 511px card
-  stops growing — so desktop is unchanged and everything below scales down from
-  there. The action buttons wrap to a column on their own once they can no
-  longer fit on one line, so there is no breakpoint to keep in sync.
+  Responsive: the whole card is sized off a single unit, --u, which is one
+  pixel of the 511px frame. Figma's mobile frame (node 113:7) turned out to be
+  this same card scaled by exactly 320/511 = 0.62622 — padding 32 -> 20.039,
+  radius 40 -> 25.049, name 23 -> 14.403, status bar 431 -> 269.902 — so one
+  multiplier reproduces it at 320px and keeps reproducing it at every width
+  above that. There are no breakpoints and no per-size overrides to keep in
+  sync. See the --u comment for how the scale and the gutters behave.
 -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -42,25 +43,23 @@
     --font-body: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
     --font-accent: "Syne", ui-sans-serif, system-ui, sans-serif;
 
-    /* --- responsive scale ---
-       Every inner clamp below resolves to its original fixed px at a 591px
-       viewport. That is the width at which the 511px card stops growing
-       (511 + 2x40 gutters); wider than that the clamps are pinned to the
-       original numbers, so the desktop rendering is pixel-identical.
-       Narrower, they shrink roughly in step with the card, so no rule ever
-       has to overflow or clip.
+    /* --- scale ---
+       --u is one pixel of the 511px Figma frame, and every size below is
+       written as a multiple of it, so the card scales as a single object.
 
-       The floors are deliberately higher than a strictly proportional scale
-       would give. This is a card people actually read, so 12px labels on a
-       360px phone would be a bad trade — the layout absorbs the extra
-       wrapping instead. --gutter is the exception: it is just the page
-       margin and never affects the card, which is capped well below it. */
-    --gutter: clamp(16px, 5vw, 40px);
-    --card-pad: clamp(20px, 5.41vw, 32px);
-    --card-gap: clamp(20px, 5.41vw, 32px);
-    --card-radius: clamp(22px, 6.77vw, 40px);
-    --avatar: clamp(48px, 9.14vw, 54px);
-    --bar-icon: clamp(14px, 3.38vw, 20px);
+       100vw / 511 is that scale for a card filling the viewport, which is
+       what the mobile frame shows: there the card is exactly as wide as the
+       frame (320px), flush to both edges, with its own padding of 20.039 and
+       a status bar inset of 25.049 — i.e. 32 and 40 at the frame's scale.
+
+       min(..., 1px) pins the scale at 1:1 once the viewport is wide enough
+       for the card to reach its 511px cap, so desktop is unchanged. */
+    --u: min(100vw / 511, 1px);
+
+    /* Gutters exist only once the viewport is wider than the card: 0 at
+       511px, growing to the original 40px at 591px (511 + 2x40). Below
+       511px this is 0, keeping the card flush to the screen edges. */
+    --gutter: clamp(0px, (100vw - 511px) / 2, 40px);
   }
 
   * { box-sizing: border-box; }
@@ -74,9 +73,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    /* max() keeps the safe-area inset from being eaten by the gutter on
-       notched devices (viewport-fit=cover above lets the card reach the
-       edges, which is what makes the env() values non-zero). */
+    /* max() so a notch or home-indicator inset outranks a 0px gutter on a
+       phone: the card is flush by default but never under the hardware. */
     padding-top: max(var(--gutter), env(safe-area-inset-top));
     padding-right: max(var(--gutter), env(safe-area-inset-right));
     padding-bottom: max(var(--gutter), env(safe-area-inset-bottom));
@@ -92,10 +90,9 @@
 
   /* Outer cap — 511px, matching the Figma frame. The status bar below is
      431px, i.e. 511 - 2x40, so its square corners meet the card's 40px
-     bottom radius exactly. That ratio is the whole effect; don't change one
-     without the other — which is why the bar's inset is derived from
-     --card-radius rather than hard-coded, so the two stay locked together
-     as the card scales down. */
+     bottom radius exactly. That ratio is the whole effect, and it survives
+     scaling because the bar's inset is derived from the card radius rather
+     than hard-coded. */
   .profile-card {
     width: 100%;
     max-width: 511px;
@@ -109,10 +106,10 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--card-gap);
-    padding: var(--card-pad);
+    gap: calc(32 * var(--u));
+    padding: calc(32 * var(--u));
     background: var(--surface);
-    border-radius: var(--card-radius);
+    border-radius: calc(40 * var(--u));
   }
 
   /* --- availability + local time --- */
@@ -121,34 +118,34 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    /* Safety net on very narrow screens: the clock drops to its own line
-       rather than colliding with the badge. The gap is a minimum, so
-       space-between still governs the spacing everywhere it fits. */
+    /* Safety net: if the badge and clock ever can't share a line the clock
+       drops to its own. The gap is a minimum, so space-between still governs
+       the spacing everywhere they do fit. */
     flex-wrap: wrap;
-    gap: clamp(8px, 1.35vw, 12px);
+    gap: calc(8 * var(--u));
   }
 
   .availability {
     display: inline-flex;
     align-items: center;
-    gap: clamp(5px, 1.02vw, 6px);
-    padding: clamp(3px, 0.68vw, 4px) clamp(10px, 2.03vw, 12px);
-    border-radius: 50px;
+    gap: calc(6 * var(--u));
+    padding: calc(4 * var(--u)) calc(12 * var(--u));
+    border-radius: calc(50 * var(--u));
     background: var(--online-soft);
     flex: none;
   }
 
   .availability__dot {
-    width: clamp(7px, 1.35vw, 8px);
-    height: clamp(7px, 1.35vw, 8px);
-    border-radius: 20px;
+    width: calc(8 * var(--u));
+    height: calc(8 * var(--u));
+    border-radius: calc(20 * var(--u));
     background: var(--online);
     flex: none;
     animation: dot-glow 2s ease-out infinite;
   }
 
   .availability__label {
-    font-size: clamp(11px, 2.03vw, 12px);
+    font-size: calc(12 * var(--u));
     letter-spacing: 0.02em;
     white-space: nowrap;
   }
@@ -158,7 +155,7 @@
     /* auto keeps the clock right-aligned even on the line it wraps onto,
        where space-between alone would push it to the left. */
     margin-left: auto;
-    font-size: clamp(14px, 2.71vw, 16px);
+    font-size: calc(16 * var(--u));
     letter-spacing: 0.02em;
     white-space: nowrap;
   }
@@ -170,14 +167,14 @@
     width: 100%;
     display: flex;
     align-items: center;
-    gap: clamp(12px, 2.71vw, 16px);
+    gap: calc(16 * var(--u));
   }
 
   .identity__avatar {
-    width: var(--avatar);
-    height: var(--avatar);
+    width: calc(54 * var(--u));
+    height: calc(54 * var(--u));
     border-radius: 50%;
-    border: clamp(1px, 0.25vw, 1.5px) solid #fff;
+    border: calc(1.5 * var(--u)) solid #fff;
     object-fit: cover;
     flex: none;
   }
@@ -188,46 +185,45 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: clamp(2px, 0.51vw, 3px);
+    gap: calc(3 * var(--u));
   }
 
   .identity__name {
     margin: 0;
-    font-size: clamp(18px, 3.89vw, 23px);
+    font-size: calc(23 * var(--u));
     letter-spacing: 0.02em;
   }
 
   .identity__role {
     margin: 0;
-    font-size: clamp(14px, 3.05vw, 18px);
+    font-size: calc(18 * var(--u));
     letter-spacing: 0.02em;
     opacity: 0.8;
   }
 
   /* --- actions ---
-     flex-wrap plus a small flex-basis makes the two buttons fall into a
-     full-width column by themselves once their text can no longer share a
-     line — the line breaker measures each button at its min-content width
-     (they are nowrap), so the switch happens exactly when it has to. No
-     breakpoint, and nothing to keep in sync with the React version. */
+     Both buttons scale with everything else, so they share a line at every
+     width exactly as the frame shows. flex-wrap is only a fallback: if a
+     font metric ever runs wider than expected they stack full-width instead
+     of overflowing the card, which is the failure mode that matters. */
   .actions {
     width: 100%;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: clamp(12px, 2.71vw, 16px);
+    gap: calc(16 * var(--u));
   }
 
   .action {
-    flex: 1 1 120px;
+    flex: 1 1 calc(120 * var(--u));
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: clamp(13px, 2.71vw, 16px) clamp(16px, 5.41vw, 32px);
+    padding: calc(16 * var(--u)) calc(32 * var(--u));
     border: 0;
-    border-radius: 70px;
+    border-radius: calc(70 * var(--u));
     font-family: inherit;
-    font-size: clamp(15px, 3.05vw, 18px);
+    font-size: calc(18 * var(--u));
     letter-spacing: 0.02em;
     color: #fff;
     text-decoration: none;
@@ -248,19 +244,19 @@
   .action--portfolio:hover { background: rgba(38, 38, 40, 0.8); }
 
   /* --- status bar ---
-     The inline inset is 2x --card-radius, so the bar's square top corners
-     land on the card's bottom-radius endpoints at every size — 511 - 80 =
-     431 on desktop, and proportionally the same on a phone. max-width is the
+     Inset by 2x the card radius, so its square top corners land on the
+     card's bottom-radius endpoints at every scale: 511 - 80 = 431 on
+     desktop, 320 - 50.098 = 269.902 at the frame's 320px. max-width is the
      original cap, kept as a guard. */
   .status-bar {
-    width: calc(100% - (var(--card-radius) * 2));
+    width: calc(100% - 80 * var(--u));
     max-width: 431px;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: clamp(9px, 2.03vw, 12px) clamp(8px, 1.69vw, 10px);
+    padding: calc(12 * var(--u)) calc(10 * var(--u));
     background: var(--bar);
-    border-radius: 0 0 100px 100px;
+    border-radius: 0 0 calc(100 * var(--u)) calc(100 * var(--u));
     overflow: hidden;
   }
 
@@ -270,23 +266,19 @@
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    gap: clamp(5px, 1.02vw, 6px);
+    gap: calc(6 * var(--u));
   }
 
   .status-bar__icon {
-    width: var(--bar-icon);
-    height: var(--bar-icon);
+    width: calc(20 * var(--u));
+    height: calc(20 * var(--u));
     flex: none;
     animation: icon-blink 1.5s ease-in-out infinite;
   }
 
-  /* The label is the widest single run of text in the card, and the bar is
-     the narrowest box once its inset (2x the card radius) is taken off, so
-     this floor is what actually sets the smallest supported width. At 12px
-     the whole pill is ~204px against ~228px of room on a 320px screen. */
   .status-bar__label {
     margin: 0;
-    font-size: clamp(12px, 3.05vw, 18px);
+    font-size: calc(18 * var(--u));
     letter-spacing: 0.02em;
     white-space: nowrap;
   }
@@ -298,13 +290,13 @@
     0% {
       box-shadow:
         0 0 0 0 rgba(32, 242, 60, 0.6),
-        0 0 6px 1px rgba(32, 242, 60, 0.9);
+        0 0 calc(6 * var(--u)) calc(1 * var(--u)) rgba(32, 242, 60, 0.9);
     }
     70%,
     100% {
       box-shadow:
-        0 0 0 6px rgba(32, 242, 60, 0),
-        0 0 6px 1px rgba(32, 242, 60, 0.9);
+        0 0 0 calc(6 * var(--u)) rgba(32, 242, 60, 0),
+        0 0 calc(6 * var(--u)) calc(1 * var(--u)) rgba(32, 242, 60, 0.9);
     }
   }
 
@@ -318,7 +310,7 @@
   @media (prefers-reduced-motion: reduce) {
     .availability__dot {
       animation: none;
-      box-shadow: 0 0 6px 1px rgba(32, 242, 60, 0.9);
+      box-shadow: 0 0 calc(6 * var(--u)) calc(1 * var(--u)) rgba(32, 242, 60, 0.9);
     }
     .status-bar__icon { animation: none; }
   }
