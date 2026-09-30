@@ -21,9 +21,12 @@
   pixel of the 511px frame. Figma's mobile frame (node 113:7) turned out to be
   this same card scaled by exactly 320/511 = 0.62622 — padding 32 -> 20.039,
   radius 40 -> 25.049, name 23 -> 14.403, status bar 431 -> 269.902 — so one
-  multiplier reproduces it at 320px and keeps reproducing it at every width
-  above that. There are no breakpoints and no per-size overrides to keep in
-  sync. See the --u comment for how the scale and the gutters behave.
+  multiplier reproduces it at every width. There are no breakpoints and no
+  per-size overrides to keep in sync. See the --u comment for how the scale
+  and the gutter behave.
+
+  The frame draws the card flush to its 320px edge, but on a real phone that
+  reads as touching the bezel, so the card now holds a 20px gutter minimum.
 -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -43,23 +46,32 @@
     --font-body: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
     --font-accent: "Syne", ui-sans-serif, system-ui, sans-serif;
 
+    /* --- breathing room ---
+       20px minimum, so the card never touches the screen edge, growing to
+       the original 40px once the viewport is wide enough (591px) for the
+       card to sit at its full 511px. Between 511 and 591 it eases from 20 to
+       40 as the viewport grows.
+
+       --edge-x is that gutter widened to clear any hardware inset. It is the
+       single source of truth for BOTH the body's side padding and --u below,
+       which is what keeps the card exactly 511u wide at every size — if the
+       two ever disagreed the card would overflow. */
+    --gutter: clamp(20px, (100vw - 511px) / 2, 40px);
+    --edge-x: max(var(--gutter), env(safe-area-inset-left), env(safe-area-inset-right));
+
     /* --- scale ---
        --u is one pixel of the 511px Figma frame, and every size below is
        written as a multiple of it, so the card scales as a single object.
 
-       100vw / 511 is that scale for a card filling the viewport, which is
-       what the mobile frame shows: there the card is exactly as wide as the
-       frame (320px), flush to both edges, with its own padding of 20.039 and
-       a status bar inset of 25.049 — i.e. 32 and 40 at the frame's scale.
+       It is derived from the card's own width rather than the viewport's.
+       The card is 511u by construction, so its padding is 32u, its radius
+       40u and its status bar 431u at every width, exactly as the 511px frame
+       specifies. Figma's mobile frame (node 113:7) is this same card at
+       u = 320/511.
 
-       min(..., 1px) pins the scale at 1:1 once the viewport is wide enough
-       for the card to reach its 511px cap, so desktop is unchanged. */
-    --u: min(100vw / 511, 1px);
-
-    /* Gutters exist only once the viewport is wider than the card: 0 at
-       511px, growing to the original 40px at 591px (511 + 2x40). Below
-       511px this is 0, keeping the card flush to the screen edges. */
-    --gutter: clamp(0px, (100vw - 511px) / 2, 40px);
+       min(..., 1px) pins the scale at 1:1 once the card reaches its 511px
+       cap, so desktop is unchanged. */
+    --u: min(calc((100vw - 2 * var(--edge-x)) / 511), 1px);
   }
 
   * { box-sizing: border-box; }
@@ -73,12 +85,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    /* max() so a notch or home-indicator inset outranks a 0px gutter on a
-       phone: the card is flush by default but never under the hardware. */
+    /* max() so a notch or home-indicator inset outranks the gutter on a
+       phone: the card keeps its 20px by default but never sits under the
+       hardware. The side padding is --edge-x rather than the same max()
+       spelled out again, so it cannot drift from what --u assumed. */
     padding-top: max(var(--gutter), env(safe-area-inset-top));
-    padding-right: max(var(--gutter), env(safe-area-inset-right));
+    padding-right: var(--edge-x);
     padding-bottom: max(var(--gutter), env(safe-area-inset-bottom));
-    padding-left: max(var(--gutter), env(safe-area-inset-left));
+    padding-left: var(--edge-x);
     background: #3a3a3a; /* neutral backdrop so the card's edges read */
     font-family: var(--font-body);
     color: #fff;
@@ -246,8 +260,8 @@
   /* --- status bar ---
      Inset by 2x the card radius, so its square top corners land on the
      card's bottom-radius endpoints at every scale: 511 - 80 = 431 on
-     desktop, 320 - 50.098 = 269.902 at the frame's 320px. max-width is the
-     original cap, kept as a guard. */
+     desktop, and exactly 431u at every other width, because the card itself
+     is 511u. max-width is the original cap, kept as a guard. */
   .status-bar {
     width: calc(100% - 80 * var(--u));
     max-width: 431px;
